@@ -1,0 +1,122 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+
+# Read the dataset
+data = pd.read_csv("/content/Real estate.csv")
+
+# Data preprocessing
+# Drop 'No' column as it is not relevant for prediction
+data.drop('No', axis=1, inplace=True)
+
+# Split dataset into features and target variable
+X = data.drop('Y house price of unit area', axis=1)
+y = data['Y house price of unit area']
+
+# Split dataset into training set and test set
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale numerical features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Hyperparameter tuning for Random Forest
+param_grid = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [None, 10, 20],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4]
+}
+
+rf = RandomForestRegressor(random_state=42)
+grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, cv=5, scoring='neg_mean_squared_error')
+grid_search.fit(X_train_scaled, y_train)
+
+best_rf = grid_search.best_estimator_
+
+# Train Linear Regression model
+linear_reg = LinearRegression()
+linear_reg.fit(X_train_scaled, y_train)
+
+# Train Decision Tree model
+decision_tree = DecisionTreeRegressor()
+decision_tree.fit(X_train_scaled, y_train)
+
+# Train Random Forest model
+random_forest = best_rf
+random_forest.fit(X_train_scaled, y_train)
+
+# Function to predict using all three models and take average
+def combined_predict(x):
+    linear_pred = linear_reg.predict(x)
+    dt_pred = decision_tree.predict(x)
+    rf_pred = random_forest.predict(x)
+    return (linear_pred + dt_pred + rf_pred) / 3
+
+# Predict using combined models
+combined_predictions = combined_predict(X_test_scaled)
+
+# Calculate mean squared error for combined model
+mse_combined = mean_squared_error(y_test, combined_predictions)
+
+# Calculate R-squared for combined model
+r2_combined = r2_score(y_test, combined_predictions)
+
+print("Model:")
+print("Mean Squared Error:", mse_combined)
+print("R-squared (Accuracy):", r2_combined)
+
+# Evaluate individual model accuracies
+# Linear Regression
+linear_pred = linear_reg.predict(X_test_scaled)
+mse_linear = mean_squared_error(y_test, linear_pred)
+r2_linear = r2_score(y_test, linear_pred)
+
+# Decision Tree
+dt_pred = decision_tree.predict(X_test_scaled)
+mse_dt = mean_squared_error(y_test, dt_pred)
+r2_dt = r2_score(y_test, dt_pred)
+
+# Random Forest
+rf_pred = random_forest.predict(X_test_scaled)
+mse_rf = mean_squared_error(y_test, rf_pred)
+r2_rf = r2_score(y_test, rf_pred)
+
+# Take input from user for prediction
+print("\nEnter details for prediction:")
+transaction_date = float(input("Transaction Date (X1): "))
+house_age = float(input("House Age (X2): "))
+distance_to_mrt = float(input("Distance to the Nearest MRT Station (X3): "))
+num_convenience_stores = float(input("Number of Convenience Stores (X4): "))
+latitude = float(input("Latitude (X5): "))
+longitude = float(input("Longitude (X6): "))
+
+# Preprocess user input
+user_input = [[transaction_date, house_age, distance_to_mrt, num_convenience_stores, latitude, longitude]]
+user_input_scaled = scaler.transform(user_input)
+
+# Predict using combined models
+predicted_price_combined = combined_predict(user_input_scaled)[0]
+print("\nPredicted House Price of Unit Area (Combined Model):", predicted_price_combined)
+
+# Plotting the data and combined model prediction
+plt.figure(figsize=(10, 6))
+
+# Scatter plot of actual data
+plt.scatter(y_test, combined_predictions, color='blue', label='Actual vs Predicted')
+
+# Plotting the ideal line where predictions equal actual values
+plt.plot(y_test, y_test, color='red', label='Ideal Line')
+
+plt.title('Combined Model Prediction vs Actual')
+plt.xlabel('Actual House Price of Unit Area')
+plt.ylabel('Predicted House Price of Unit Area')
+plt.legend()
+plt.grid(True)
+plt.show()
